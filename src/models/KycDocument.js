@@ -7,7 +7,6 @@ const kycSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-
     documents: [
       {
         type: {
@@ -18,13 +17,6 @@ const kycSchema = new mongoose.Schema(
         uploadedAt: { type: Date, default: Date.now },
       },
     ],
-
-    status: {
-      type: String,
-      enum: ["not_submitted", "pending", "approved", "rejected"],
-      default: "not_submitted",
-    },
-
     rejectionHistory: [
       {
         reason: { type: String },
@@ -32,7 +24,6 @@ const kycSchema = new mongoose.Schema(
         rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       },
     ],
-
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

@@ -1,7 +1,5 @@
 const mongoose = require("mongoose");
 
-firstname, lastname, displayName, bio, profilepic,dateofbirth, gender, country, city, travelPreference,cateory, skills , photos, videos ,availableDates, preferredWorkingHours, socialLinks
-
 const artistSchema = new mongoose.Schema(
   {
     user: {
@@ -10,18 +8,25 @@ const artistSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    firstName:    { type: String, required: true, trim: true },
-    lastName:     { type: String, required: true, trim: true },
-    displayName:  { type: String, trim: true },
-    bio:          { type: String, maxlength: 1000 },
+    username: {
+      type: String,
+      unique: true,  
+      sparse: true,   
+      lowercase: true,
+      trim: true,
+    },
+    firstName: { type: String, required: true, trim: true },
+    lastName: { type: String, required: true, trim: true },
+    displayName: { type: String, trim: true },
+    bio: { type: String, maxlength: 1000 },
     profilePhoto: { type: String },
-    dateOfBirth:  { type: Date },
+    dateOfBirth: { type: Date },
     gender: {
       type: String,
       enum: ["male", "female", "prefer_not_to_say"],
     },
     country: { type: String },
-    city:    { type: String },
+    city: { type: String },
     travelPreference: {
       type: String,
       enum: ["local_only", "national", "international"],
@@ -35,14 +40,13 @@ const artistSchema = new mongoose.Schema(
     skills: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Skill", 
+        ref: "Skill",
       }
     ],
     experienceYears: { type: Number, min: 0, default: 0 },
-
     expectedRateMin: { type: Number, min: 0 },
     expectedRateMax: { type: Number, min: 0 },
-    currency:        { type: String, default: "USD" },
+    currency: { type: String, default: "USD" },
     photos: {
       type: [String],
       validate: {
@@ -65,12 +69,11 @@ const artistSchema = new mongoose.Schema(
     },
     socialLinks: {
       instagram: { type: String },
-      tiktok:    { type: String },
-      youtube:   { type: String },
-      spotify:   { type: String },
-      website:   { type: String },
+      tiktok: { type: String },
+      youtube: { type: String },
+      spotify: { type: String },
+      website: { type: String },
     },
-
   },
   { timestamps: true }
 );

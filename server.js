@@ -1,16 +1,12 @@
 
-require('dotenv').config()
-const express = require('express')
-const PORT = process.env.PORT || 5000
-const dbConnect = require('./src/config/db');
+require("dotenv").config();
+const dbConnect = require("./src/config/db");
+const app = require("./src/app");
 
-const app = express();
+const PORT = process.env.PORT || 5000;
 
-dbConnect(); 
-app.get('/', (req, res) => {
-  res.send('Hello artists!')
-})
+dbConnect();
 
 app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`)
-})
+  console.log(`Server listening on port ${PORT}`);
+});
