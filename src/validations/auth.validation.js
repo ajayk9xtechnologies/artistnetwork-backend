@@ -3,54 +3,39 @@ const Joi = require("joi");
 const registerSchema = Joi.object({
     email: Joi.string().email().required(),
     phone: Joi.string().required(),
-    password: Joi.string().min(6).required(),
+    password: Joi.string().min(8).required().pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/),
     role: Joi.string().valid("artist", "organisation", "admin").required(),
 });
 
-const verifyEmailSchema = Joi.object({
-    email: Joi.string().email().required(),
-    code: Joi.string().required(),
-});
-
-const verifyPhoneSchema = Joi.object({
-    phone: Joi.string().required(),
-    code: Joi.string().required(),
-});
-
-const resetPasswordSchema = Joi.object({
-    email: Joi.string().email().required(),
-    password: Joi.string().min(6).required(),
-    confirmPassword: Joi.string().min(6).required().valid(Joi.ref("password")),
-});
-
-const forgotPasswordSchema = Joi.object({
-    email: Joi.string().email().required(),
-});
+const generateOtpSchema = Joi.object({
+    email: Joi.string().email(),
+    phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/),
+    purpose: Joi.string().valid("forgot-password", "login", "register").required(),
+}).xor("email", "phone").required();
 
 const verifyOtpSchema = Joi.object({
-    email: Joi.string().email().required(),
+    email: Joi.string().email(),
+    phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/),
     code: Joi.string().required(),
-});
+}).xor("email", "phone").required();
 
 const loginSchema = Joi.object({
-    email: Joi.string().email(),
-    phone: Joi.string(),
-    password: Joi.string().min(6).required(),
-}).or("email", "phone");
+    email: Joi.string().email().pattern(/^\S+@\S+\.\S+$/),
+    phone: Joi.string().required(),
+    password: Joi.string().min(8).required().pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/),
+}).xor("email", "phone").required();
 
-const otpLoginSchema = Joi.object({
-    email: Joi.string().email(),
-    phone: Joi.string(),
-    otp: Joi.string().required(),
-}).or("email", "phone");
+const loginWithOtpSchema = Joi.object({
+    email: Joi.string().email().pattern(/^\S+@\S+\.\S+$/),
+    phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/),
+    code: Joi.string().required(),
+    purpose: Joi.string().valid("forgot-password", "login").required(),
+}).xor("email", "phone").required();
 
 module.exports = {
     registerSchema,
-    verifyEmailSchema,
-    verifyPhoneSchema,
-    resetPasswordSchema,
-    forgotPasswordSchema,
+    generateOtpSchema,
     verifyOtpSchema,
     loginSchema,
-    otpLoginSchema,
+    loginWithOtpSchema,
 };

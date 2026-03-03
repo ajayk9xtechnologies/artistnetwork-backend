@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+const { TRAVEL_PREFERENCE } = require("../constants/userStatus");
 const artistSchema = new mongoose.Schema(
   {
     user: {
@@ -17,7 +17,6 @@ const artistSchema = new mongoose.Schema(
     },
     firstName: { type: String, required: true, trim: true },
     lastName: { type: String, required: true, trim: true },
-    displayName: { type: String, trim: true },
     bio: { type: String, maxlength: 1000 },
     profilePhoto: { type: String },
     dateOfBirth: { type: Date },
@@ -29,20 +28,17 @@ const artistSchema = new mongoose.Schema(
     city: { type: String },
     travelPreference: {
       type: String,
-      enum: ["local_only", "national", "international"],
-      default: "local_only",
+      enum: [0, 1, 2, 3],
+      default: TRAVEL_PREFERENCE.LOCAL_ONLY,
     },
     category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      type: String,
       required: true,
     },
-    skills: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Skill",
-      }
-    ],
+    skills: {
+      type: [String],
+      required: true,
+    },
     experienceYears: { type: Number, min: 0, default: 0 },
     expectedRateMin: { type: Number, min: 0 },
     expectedRateMax: { type: Number, min: 0 },

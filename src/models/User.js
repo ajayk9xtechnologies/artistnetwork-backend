@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { ACCOUNT_STATUS, KYC_STATUS } = require("../constants/userStatus");
 
 const userSchema = new mongoose.Schema(
   {
@@ -18,14 +19,14 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     status: {
-      type: String,
-      enum: ["pending", "active", "suspended", "deactivated"],
-      default: "pending",
+      type: Number,
+      enum: [0, 1, 2, 3],
+      default: ACCOUNT_STATUS.PENDING,
     },
     kycStatus: {
-      type: String,
-      enum: ["not_submitted", "pending", "approved", "rejected"],
-      default: "not_submitted",
+      type: Number,
+      enum: [0, 1, 2, 3],
+      default: KYC_STATUS.NOT_SUBMITTED,
     },
     emailVerifiedAt: { type: Date, default: null },
     phoneVerifiedAt: { type: Date, default: null },
