@@ -1,34 +1,41 @@
-const { User, ArtistProfile, OrganisationProfile } = require("../models");
+const { ArtistProfile } = require("../models");
 const { apiResponse } = require("../utils");
 
 const profileController = {
-  async getProfile(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const user = await User.findById(userId);
-      if (!user) return apiResponse.failure(res, "User not found", 404);
-      const artistProfile = await ArtistProfile.findOne({ user: user._id });
-      if (!artistProfile) return apiResponse.failure(res, "Artist profile not found", 404);
-      return apiResponse.success(res, {
-        user,
-        artistProfile,
-      });
-    } catch (err) {
-      next(err);
-    }
-  },
+    // async getProfile(req, res, next) {
+    //     try {
+    //         const profile = await ArtistProfile.findOne({ user: req.user.id }).populate("gallery");
+    //         return apiResponse.success(res, profile, "Profile fetched successfully");
+    //     } catch (error) {
+    //         next(error);
+    //     }
+    // },
 
-  async updateArtistProfile(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { firstName, lastName, username, bio, profilePhoto, dateOfBirth, gender, country, city, travelPreference, category, skills, experienceYears, expectedRateMin, expectedRateMax, currency, photos, videos, availableDates, preferredWorkingHours, socialLinks } = req.body;
-      const artistProfile = await ArtistProfile.findOneAndUpdate({ user: userId }, { firstName, lastName, username, bio, profilePhoto, dateOfBirth, gender, country, city, travelPreference, category, skills, experienceYears, expectedRateMin, expectedRateMax, currency, photos, videos, availableDates, preferredWorkingHours, socialLinks }, { new: true });
-      if (!artistProfile) return apiResponse.failure(res, "Artist profile not found", 404);
-      return apiResponse.success(res, artistProfile, "Artist profile updated successfully", 200);
-    } catch (err) {
-      next(err);
-    }
-  },
+    async upsertArtistProfile(req, res, next) {
+        try {
+            const data = req.body.artistProfileData;
+            const userId = req.userId;
+            if (!data || typeof data !== "object") {
+                return apiResponse.failure(res, "Invalid profile data", 400);
+            }
+            const existing = await ArtistProfile.findOne({ user: userId });
+
+            if (existing) {
+                const updated = await ArtistProfile.findOneAndUpdate(
+                    { user: userId },
+                    { $set: data },
+                    { new: true }
+                );
+                return apiResponse.success(res, updated, "Artist profile updated successfully");
+            }
+
+            const newArtistProfile = new ArtistProfile({ user: userId, ...data });
+            await newArtistProfile.save();
+            return apiResponse.success(res, newArtistProfile, "Artist profile created successfully");
+        } catch (error) {
+            next(error);
+        }
+    },
 };
 
 module.exports = profileController;

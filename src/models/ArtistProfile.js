@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { TRAVEL_PREFERENCE } = require("../constants/userStatus");
+const { TRAVEL_PREFERENCE, PREFERRED_WORKING_HOURS, CURRENCY } = require("../constants/userStatus");
 const artistSchema = new mongoose.Schema(
   {
     user: {
@@ -10,8 +10,8 @@ const artistSchema = new mongoose.Schema(
     },
     username: {
       type: String,
-      unique: true,  
-      sparse: true,   
+      unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
     },
@@ -24,15 +24,19 @@ const artistSchema = new mongoose.Schema(
       type: String,
       enum: ["male", "female", "prefer_not_to_say"],
     },
+    languages: {
+      type: [String],
+      required: true,
+    },
     country: { type: String },
     city: { type: String },
     travelPreference: {
       type: String,
-      enum: [0, 1, 2, 3],
+      enum: Object.values(TRAVEL_PREFERENCE),
       default: TRAVEL_PREFERENCE.LOCAL_ONLY,
     },
-    category: {
-      type: String,
+    categories: {
+      type: [String],
       required: true,
     },
     skills: {
@@ -42,26 +46,16 @@ const artistSchema = new mongoose.Schema(
     experienceYears: { type: Number, min: 0, default: 0 },
     expectedRateMin: { type: Number, min: 0 },
     expectedRateMax: { type: Number, min: 0 },
-    currency: { type: String, default: "USD" },
-    photos: {
-      type: [String],
-      validate: {
-        validator: (v) => v.length <= 9,
-        message: "Maximum 9 photos allowed",
-      },
-    },
-    videos: {
-      type: [String],
-      validate: {
-        validator: (v) => v.length <= 9,
-        message: "Maximum 9 videos allowed",
-      },
+    currency: { type: String, enum: Object.values(CURRENCY), default: CURRENCY.USD },
+    gallery: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Gallery",
     },
     availableDates: [{ type: Date }],
     preferredWorkingHours: {
       type: String,
-      enum: ["morning", "evening", "night", "flexible"],
-      default: "flexible",
+      enum: Object.values(PREFERRED_WORKING_HOURS),
+      default: PREFERRED_WORKING_HOURS.FLEXIBLE,
     },
     socialLinks: {
       instagram: { type: String },

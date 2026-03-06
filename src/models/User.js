@@ -17,6 +17,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["artist", "organisation", "admin"],
       required: true,
+    }, 
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,   // allows others users without googleId
     },
     status: {
       type: Number,

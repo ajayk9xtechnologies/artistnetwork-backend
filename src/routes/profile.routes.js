@@ -1,11 +1,23 @@
 const express = require("express");
-const { profileController } = require("../controllers");
-const { validateRequest } = require("../middleware");
-const { artistProfileValidation } = require("../validations");
+const { artistProfileValidation, updateArtistProfileValidation } = require("../validations/profile.validation");
+const { profileController, authController } = require("../controllers");
 const router = express.Router();
-  
-//if{} pathname , thn middleware if middleware failed then controller will not call, if middleware passed then controller will call,
-router.get('/',profileController.getProfile);   
-router.post('/update-artist-profile',validateRequest(artistProfileValidation),profileController.updateArtistProfile);
+const { validateRequest, requireAuth } = require("../middleware");
 
+router.get('/fetch-user', requireAuth, authController.fetchUser);
+
+router.post(
+    '/create-artist-profile',
+    requireAuth,
+    validateRequest(artistProfileValidation),
+    profileController.upsertArtistProfile,
+);
+router.put(
+    '/update-artist-profile',
+    requireAuth,
+    validateRequest(updateArtistProfileValidation),
+    profileController.upsertArtistProfile,
+);
+// router.post('/create-gallery',requireAuth,validateRequest(galleryValidation.galleryData),profileController.createGallery);
+// router.put('/update-gallery',requireAuth,validateRequest(galleryValidation.galleryData),profileController.updateGallery);
 module.exports = router;

@@ -3,4 +3,5 @@
 
 module.exports = {
   authValidations: require("./auth.validation"),
+  profileValidations: require("./profile.validation"),
 };
