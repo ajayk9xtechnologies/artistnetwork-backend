@@ -22,6 +22,7 @@ router.post('/generate-otp', validateRequest(authValidations.generateOtpSchema),
 router.post('/verify-otp', validateRequest(authValidations.verifyOtpSchema), authController.verifyOtp);
 router.post('/login', validateRequest(authValidations.loginSchema), authController.loginEmailOrPhone);
 router.post('/login-with-otp', validateRequest(authValidations.loginWithOtpSchema), authController.loginWithOtp);
+router.post('/reset-password', validateRequest(authValidations.resetPasswordSchema), authController.resetPassword);
 
 router.get(
     "/google",

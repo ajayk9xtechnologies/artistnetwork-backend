@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const mediaItemSchema = new mongoose.Schema({
     url: { type: String, required: true },
+    key: { type: String },             // S3 object key, required for delete
     thumbnail: { type: String },        // for videos only
     type: { type: String, enum: ["photo", "video"], required: true },
     isPublic: { type: Boolean, default: true },

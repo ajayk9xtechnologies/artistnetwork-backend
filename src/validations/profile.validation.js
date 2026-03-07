@@ -78,7 +78,33 @@ const artistProfileValidation = Joi.object({
 });
 
 
+// Organisation profile: one validation for both create and update (org must fill full profile)
+const organisationProfileValidation = Joi.object({
+  organisationProfileData: Joi.object({
+    name: Joi.string().trim().min(3).required(),
+    description: Joi.string().trim().max(1000).required(),
+    logo: Joi.string().trim().required(),
+    email: Joi.string().email().required(),
+    phone: Joi.string().trim().required(),
+    country: Joi.string().trim().required(),
+    city: Joi.string().trim().required(),
+    categories: Joi.array().items(Joi.string().trim()).min(1).required(),
+    website: Joi.string().uri().allow("", null),
+    address: Joi.string().trim().allow("", null),
+    socialLinks: Joi.object({
+      instagram: Joi.string().uri().allow("", null),
+      facebook: Joi.string().uri().allow("", null),
+      linkedin: Joi.string().uri().allow("", null),
+      twitter: Joi.string().uri().allow("", null),
+    }).default({}),
+    employeeCount: Joi.number().min(0).allow(null),
+    foundedYear: Joi.number().integer().min(1900).max(new Date().getFullYear()).allow(null),
+    subscriptionTier: Joi.string().valid("free", "pro", "enterprise").default("free"),
+  }),
+});
+
 module.exports = {
   artistProfileValidation,
   updateArtistProfileValidation,
+  organisationProfileValidation,
 };

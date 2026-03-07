@@ -28,6 +28,7 @@ const userSchema = new mongoose.Schema(
       enum: [0, 1, 2, 3],
       default: ACCOUNT_STATUS.PENDING,
     },
+    lastSeenAt: { type: Date, default: null }, // for "online" status: consider online if within ~5 min
     kycStatus: {
       type: Number,
       enum: [0, 1, 2, 3],

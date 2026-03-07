@@ -17,6 +17,7 @@ const verifyOtpSchema = Joi.object({
     email: Joi.string().email(),
     phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/),
     code: Joi.string().required(),
+    purpose: Joi.string().valid("register", "forgot-password").default("register"),
 }).xor("email", "phone").required();
 
 const loginSchema = Joi.object({
@@ -32,10 +33,17 @@ const loginWithOtpSchema = Joi.object({
     purpose: Joi.string().valid("forgot-password", "login").required(),
 }).xor("email", "phone").required();
 
+const resetPasswordSchema = Joi.object({
+    email: Joi.string().email(),
+    phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/),
+    newPassword: Joi.string().min(8).required().pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/),
+}).xor("email", "phone").required();
+
 module.exports = {
     registerSchema,
     generateOtpSchema,
     verifyOtpSchema,
     loginSchema,
     loginWithOtpSchema,
+    resetPasswordSchema,
 };

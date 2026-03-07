@@ -6,10 +6,9 @@ function setAuthCookie(res, userId) {
   // ✅ Use res.cookie() instead of setHeader
   res.cookie("token", token, {
     httpOnly: true,
-    secure: false,  // set to false for localhost (HTTPS not required)
+    secure: false, 
     sameSite: "lax",
-    path: "/",      // ← KEY! Makes it work for ALL routes
-    maxAge: 3600000 // 1 hour
+    path: "/",
   });
 
   return token;

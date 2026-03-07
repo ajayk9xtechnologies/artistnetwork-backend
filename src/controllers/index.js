@@ -4,4 +4,5 @@
 module.exports = {
   authController: require("./auth.controller"),
   profileController: require("./profile.controller"),
+  kycController: require("./kyc.controller"),
 };

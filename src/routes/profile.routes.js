@@ -1,5 +1,5 @@
 const express = require("express");
-const { artistProfileValidation, updateArtistProfileValidation } = require("../validations/profile.validation");
+const { artistProfileValidation, updateArtistProfileValidation, organisationProfileValidation } = require("../validations/profile.validation");
 const { profileController } = require("../controllers");
 const router = express.Router();
 const { validateRequest, requireAuth,uploadMiddleware } = require("../middleware");
@@ -19,6 +19,20 @@ router.put(
     validateRequest(updateArtistProfileValidation),
     profileController.upsertArtistProfile,
 );
+
+router.post(
+    '/create-organisation-profile',
+    requireAuth,
+    validateRequest(organisationProfileValidation),
+    profileController.upsertOrganisationProfile,
+);
+router.put(
+    '/update-organisation-profile',
+    requireAuth,
+    validateRequest(organisationProfileValidation),
+    profileController.upsertOrganisationProfile,
+);
+
 router.post('/create-gallery',requireAuth,uploadMiddleware,profileController.addToGallery);
 router.get('/fetch-gallery',requireAuth,profileController.getGallery);
 router.delete('/delete-gallery-item',requireAuth,profileController.deleteFromGallery);

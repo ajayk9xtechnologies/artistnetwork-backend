@@ -1,16 +1,26 @@
+// ─── Account status (User.status) ─────────────────────────────────────────
+// Who can login and use the app. Same for artist and organisation.
+// PENDING → first successful login sets ACTIVE. SUSPENDED/DEACTIVATED cannot login.
 const ACCOUNT_STATUS = {
-    PENDING: 0, // just registered / not fully verified yet.
-    ACTIVE: 1, // normal user, can use the platform.
-    SUSPENDED: 2, // temporarily blocked (maybe for review, payment issues, abuse).
-    DEACTIVATED: 3, // permanently closed account (by user or admin).
+    PENDING: 0,   // just registered; can login; first login → ACTIVE
+    ACTIVE: 1,    // normal; can use the platform
+    SUSPENDED: 2, // blocked (login rejected)
+    DEACTIVATED: 3, // closed (login rejected)
 };
 
-// understnd use kycStatus 
+// ─── Online status (User.lastSeenAt) ───────────────────────────────────────
+// "Is the user on the site right now?" Updated on every auth request.
+// Consider online if lastSeenAt is within this many ms.
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+
+// ─── KYC status (User.kycStatus) ───────────────────────────────────────────
+// Both artist and organisation use this. Same flow; you can later restrict
+// features (e.g. bookings, verified badge) until KYC is APPROVED.
 const KYC_STATUS = {
-    NOT_SUBMITTED: 0, // not submitted yet
-    PENDING: 1, // pending review
-    APPROVED: 2, // approved
-    REJECTED: 3, // rejected
+    NOT_SUBMITTED: 0,
+    PENDING: 1,    // under review
+    APPROVED: 2,
+    REJECTED: 3,
 };
 const TRAVEL_PREFERENCE = {
     LOCAL_ONLY: 0, // local only
@@ -58,4 +68,4 @@ const CURRENCY = {
     TWD: "TWD",
 };
  
-module.exports = { ACCOUNT_STATUS, KYC_STATUS, TRAVEL_PREFERENCE, PREFERRED_WORKING_HOURS, CURRENCY };
+module.exports = { ACCOUNT_STATUS, KYC_STATUS, TRAVEL_PREFERENCE, PREFERRED_WORKING_HOURS, CURRENCY, ONLINE_THRESHOLD_MS };

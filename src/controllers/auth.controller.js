@@ -3,7 +3,7 @@ const { apiResponse, setAuthCookie, verifyToken } = require("../utils");
 const bcrypt = require("bcrypt");
 const { generateOtpService } = require("../services");
 const redisClient = require("../config/redis");
-const { ACCOUNT_STATUS, KYC_STATUS } = require("../constants/userStatus");
+const { ACCOUNT_STATUS, KYC_STATUS, ONLINE_THRESHOLD_MS } = require("../constants/userStatus");
 
 
 const authController = {
@@ -18,12 +18,17 @@ const authController = {
         ],
       });
       console.log("existingUser", existingUser);
-      if (purpose === "login") {
+      if (purpose === "login" || purpose === "forgot-password") {
         if (!existingUser) return apiResponse.failure(res, "User not found, please register first", 404);
       } else if (purpose === "register") {
         if (existingUser) return apiResponse.failure(res, `User with this ${email ? "email" : "phone"} already exists`, 400);
       }
-      const prefix = purpose === "login" ? "otp:login" : "otp";
+      const prefix =
+        purpose === "login"
+          ? "otp:login"
+          : purpose === "forgot-password"
+            ? "otp:forgot-password"
+            : "otp";
       const key = email
         ? `${prefix}:email:${email.toLowerCase()}`
         : `${prefix}:phone:${phone.trim()}`;
@@ -47,34 +52,62 @@ const authController = {
 
   async verifyOtp(req, res, next) {
     try {
+      const { email, phone, code, purpose = "register" } = req.body;
 
-      const { email, phone, code } = req.body;
+      const isForgotPassword = purpose === "forgot-password";
+      const otpPrefix = isForgotPassword ? "otp:forgot-password" : "otp";
+      const verifiedPrefix = isForgotPassword ? "verified:forgot-password" : "verified";
+
       if (email) {
-        const otp = await redisClient.client.get(`otp:email:${email.toLowerCase()}`);
+        const otpKey = `${otpPrefix}:email:${email.toLowerCase()}`;
+        const verifiedKey = `${verifiedPrefix}:email:${email.toLowerCase()}`;
+        const otp = await redisClient.client.get(otpKey);
         if (!otp) return apiResponse.failure(res, "Email OTP expired or invalid", 400);
         if (otp !== code) return apiResponse.failure(res, "Email OTP invalid", 400);
-        await redisClient.client.del(`otp:email:${email.toLowerCase()}`);
-        await redisClient.client.set(
-          `verified:email:${email.toLowerCase()}`,
-          new Date().toISOString(),
-          { EX: 60 * 5 }
-        );
+        await redisClient.client.del(otpKey);
+        await redisClient.client.set(verifiedKey, new Date().toISOString(), { EX: 60 * 5 });
       }
 
       if (phone) {
-        const otp = await redisClient.client.get(`otp:phone:${phone}`);
+        const otpKey = `${otpPrefix}:phone:${phone.trim()}`;
+        const verifiedKey = `${verifiedPrefix}:phone:${phone.trim()}`;
+        const otp = await redisClient.client.get(otpKey);
         if (!otp) return apiResponse.failure(res, "Phone OTP expired or invalid", 400);
         if (otp !== code) return apiResponse.failure(res, "Phone OTP invalid", 400);
-        await redisClient.client.del(`otp:phone:${phone}`);
-
-        // ✅ store verified status in Redis for 5 min
-        await redisClient.client.set(
-          `verified:phone:${phone}`,
-          new Date().toISOString(),
-          { EX: 60 * 5 }
-        );
+        await redisClient.client.del(otpKey);
+        await redisClient.client.set(verifiedKey, new Date().toISOString(), { EX: 60 * 5 });
       }
-      return apiResponse.success(res, { message: "OTP verified successfully" }, "OTP verified successfully", 200);
+
+      const message = isForgotPassword ? "OTP verified. You can now reset your password." : "OTP verified successfully";
+      return apiResponse.success(res, { message }, "OTP verified successfully", 200);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async resetPassword(req, res, next) {
+    try {
+      const { email, phone, newPassword } = req.body;
+      const verifiedKey = email
+        ? `verified:forgot-password:email:${email.toLowerCase()}`
+        : `verified:forgot-password:phone:${phone.trim()}`;
+
+      const verified = await redisClient.client.get(verifiedKey);
+      if (!verified) return apiResponse.failure(res, "Please verify OTP first or verification has expired.", 400);
+
+      const user = await User.findOne({
+        $or: [
+          ...(email ? [{ email: email.toLowerCase() }] : []),
+          ...(phone ? [{ phone: phone.trim() }] : []),
+        ],
+      }).select("+password");
+      if (!user) return apiResponse.failure(res, "User not found", 404);
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await User.updateOne({ _id: user._id }, { $set: { password: hashedPassword } });
+      await redisClient.client.del(verifiedKey);
+
+      return apiResponse.success(res, { message: "Password reset successfully" }, "Password reset successfully", 200);
     } catch (err) {
       next(err);
     }
@@ -130,12 +163,20 @@ const authController = {
         $or: [{ email: email?.toLowerCase() }, { phone: phone?.trim() }]
       }).select("+password");
       if (!user) return apiResponse.failure(res, "User not found", 404);
+      if (user.status === ACCOUNT_STATUS.SUSPENDED) return apiResponse.failure(res, "Account suspended", 403);
+      if (user.status === ACCOUNT_STATUS.DEACTIVATED) return apiResponse.failure(res, "Account deactivated", 403);
       const isPasswordValid = await bcrypt.compare(password, user.password);
-      console.log(isPasswordValid);
       if (!isPasswordValid) return apiResponse.failure(res, "Invalid password", 400);
-      setAuthCookie(res, user._id); // set auth cookie
+      // First successful login: move from PENDING to ACTIVE
+      const updates = { lastSeenAt: new Date() };
+      if (user.status === ACCOUNT_STATUS.PENDING) updates.status = ACCOUNT_STATUS.ACTIVE;
+      if (Object.keys(updates).length > 1) await User.updateOne({ _id: user._id }, { $set: updates });
+      else if (updates.lastSeenAt) await User.updateOne({ _id: user._id }, { $set: updates });
+      setAuthCookie(res, user._id);
       const userObject = user.toObject();
       delete userObject.password;
+      if (updates.status !== undefined) userObject.status = ACCOUNT_STATUS.ACTIVE;
+      if (updates.lastSeenAt) userObject.lastSeenAt = updates.lastSeenAt;
 
       return apiResponse.success(res, { user: userObject }, "Login successful", 200);
     } catch (err) {
@@ -148,13 +189,19 @@ const authController = {
       const { email, phone, code } = req.body;
       const user = await User.findOne({ $or: [{ email: email?.toLowerCase() }, { phone: phone?.trim() }] });
       if (!user) return apiResponse.failure(res, "User not found, please register first", 404);
+      if (user.status === ACCOUNT_STATUS.SUSPENDED) return apiResponse.failure(res, "Account suspended", 403);
+      if (user.status === ACCOUNT_STATUS.DEACTIVATED) return apiResponse.failure(res, "Account deactivated", 403);
       const otp = email ? await redisClient.client.get(`otp:login:email:${email.toLowerCase()}`) : await redisClient.client.get(`otp:login:phone:${phone.trim()}`);
       if (!otp) return apiResponse.failure(res, "Login OTP expired or invalid, please generate OTP again", 400);
       if (otp !== code) return apiResponse.failure(res, "Login OTP invalid, please try again", 400);
-      // inside login or register
-      setAuthCookie(res, user._id); // set auth cookie
+      const updates = { lastSeenAt: new Date() };
+      if (user.status === ACCOUNT_STATUS.PENDING) updates.status = ACCOUNT_STATUS.ACTIVE;
+      await User.updateOne({ _id: user._id }, { $set: updates });
+      setAuthCookie(res, user._id);
       const userObject = user.toObject();
       delete userObject.password;
+      if (updates.status !== undefined) userObject.status = ACCOUNT_STATUS.ACTIVE;
+      userObject.lastSeenAt = updates.lastSeenAt;
       await redisClient.client.del(email ? `otp:login:email:${email.toLowerCase()}` : `otp:login:phone:${phone.trim()}`);
       return apiResponse.success(res, { user: userObject }, "Login successful", 200);
     } catch (err) {
@@ -240,15 +287,15 @@ const authController = {
   // for common user details, artist and organisation details are different
   async fetchUser(req, res, next) {
     try {
-      // take token from http only cookie header
       const token = req.cookies?.token;
-      console.log("token", token);
       const decoded = verifyToken(token);
       const user = await User.findOne({ _id: decoded.userId, role: { $in: ["artist", "organisation"] } });
+      if (!user) return apiResponse.failure(res, "User not found", 404);
       const artistProfile = user.role === "artist" ? await ArtistProfile.findOne({ user: user._id }) : null;
       const organisationProfile = user.role === "organisation" ? await OrganisationProfile.findOne({ user: user._id }) : null;
-      if (!user) return apiResponse.failure(res, "User not found", 404);
-      return apiResponse.success(res, { user, artistProfile, organisationProfile }, "User fetched successfully", 200);
+      const userObj = user.toObject();
+      userObj.isOnline = user.lastSeenAt && (Date.now() - new Date(user.lastSeenAt).getTime() < ONLINE_THRESHOLD_MS);
+      return apiResponse.success(res, { user: userObj, artistProfile, organisationProfile }, "User fetched successfully", 200);
     } catch (err) { next(err); }
   },
 };

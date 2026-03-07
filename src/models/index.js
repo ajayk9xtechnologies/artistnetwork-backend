@@ -3,4 +3,5 @@ module.exports = {
   ArtistProfile: require("./ArtistProfile"),
   OrganisationProfile: require("./OrganisationProfile"),
   ArtistGallery: require("./ArtistGallery"),
+  KycDocument: require("./KycDocument"),
 };
