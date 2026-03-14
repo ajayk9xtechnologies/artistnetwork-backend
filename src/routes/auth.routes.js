@@ -6,7 +6,7 @@ const passport = require("passport");
 const router = express.Router();
 
 // normal code 
-router.get('/register',async (req, res)=>{
+router.get('/register', async (req, res) => {
     try {
         res.status(200).json({ message: "Hello World" });
     } catch (error) {
@@ -23,19 +23,25 @@ router.post('/verify-otp', validateRequest(authValidations.verifyOtpSchema), aut
 router.post('/login', validateRequest(authValidations.loginSchema), authController.loginEmailOrPhone);
 router.post('/login-with-otp', validateRequest(authValidations.loginWithOtpSchema), authController.loginWithOtp);
 router.post('/reset-password', validateRequest(authValidations.resetPasswordSchema), authController.resetPassword);
-
 router.get(
     "/google",
     passport.authenticate("google", {
         scope: ["profile", "email"],
-        session: false // ✅ add this
+        session: false,
+        prompt: "select_account" 
     }),
 );
-
-// Step 2: callback from Google
-router.get(
-    "/google/callback",
-    passport.authenticate("google", { session: false, failureRedirect: "/login" }),
+router.get("/google/callback",
+    (req, res, next) => {
+        passport.authenticate("google", { session: false }, (err, user, info) => {
+            if (err) return next(err);
+            req.user = user || null;
+            req.authInfo = info || {};
+            next();
+        })(req, res, next);
+    },
     authController.googleCallback,
-  );
+);
+
+router.post("/google/complete", authController.googleComplete);
 module.exports = router;

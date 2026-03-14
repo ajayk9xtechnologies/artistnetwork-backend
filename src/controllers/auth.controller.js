@@ -4,8 +4,7 @@ const bcrypt = require("bcrypt");
 const { generateOtpService } = require("../services");
 const redisClient = require("../config/redis");
 const { ACCOUNT_STATUS, KYC_STATUS, ONLINE_THRESHOLD_MS } = require("../constants/userStatus");
-
-
+const jwt = require("jsonwebtoken");
 const authController = {
 
   async generateOtp(req, res, next) {
@@ -150,6 +149,7 @@ const authController = {
         ...(email && { emailVerifiedAt: new Date() }),
         ...(phone && { phoneVerifiedAt: new Date() }),
       });
+      setAuthCookie(res, newUser._id, newUser.role);
       return apiResponse.success(res, { userId: newUser._id, email: newUser.email, phone: newUser.phone, role: newUser.role }, "User registered successfully", 201);
     } catch (err) {
       next(err)
@@ -159,28 +159,42 @@ const authController = {
   async loginEmailOrPhone(req, res, next) {
     try {
       const { email, phone, password } = req.body;
+  
       const user = await User.findOne({
-        $or: [{ email: email?.toLowerCase() }, { phone: phone?.trim() }]
-      }).select("+password");
+        $or: [
+          ...(email ? [{ email: email.toLowerCase() }] : []),
+          ...(phone ? [{ phone: phone.trim() }] : []),
+        ]
+      }).select("+password +googleId"); // ✅ also select googleId
+  
+      // 1. User not found
       if (!user) return apiResponse.failure(res, "User not found", 404);
+  
+      // 2. Account status checks
       if (user.status === ACCOUNT_STATUS.SUSPENDED) return apiResponse.failure(res, "Account suspended", 403);
       if (user.status === ACCOUNT_STATUS.DEACTIVATED) return apiResponse.failure(res, "Account deactivated", 403);
+  
+      // 3. Google user — no password
+      if (!user.password) return apiResponse.failure(res, "This account uses Google login. Please sign in with Google.", 400);
+  
+      // 4. Wrong password
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) return apiResponse.failure(res, "Invalid password", 400);
-      // First successful login: move from PENDING to ACTIVE
+  
       const updates = { lastSeenAt: new Date() };
       if (user.status === ACCOUNT_STATUS.PENDING) updates.status = ACCOUNT_STATUS.ACTIVE;
-      if (Object.keys(updates).length > 1) await User.updateOne({ _id: user._id }, { $set: updates });
-      else if (updates.lastSeenAt) await User.updateOne({ _id: user._id }, { $set: updates });
-      setAuthCookie(res, user._id);
+      await User.updateOne({ _id: user._id }, { $set: updates });
+  
+      setAuthCookie(res, user._id, user.role);
       const userObject = user.toObject();
       delete userObject.password;
-      if (updates.status !== undefined) userObject.status = ACCOUNT_STATUS.ACTIVE;
-      if (updates.lastSeenAt) userObject.lastSeenAt = updates.lastSeenAt;
-
+      delete userObject.googleId;
+      if (updates.status) userObject.status = ACCOUNT_STATUS.ACTIVE;
+      userObject.lastSeenAt = updates.lastSeenAt;
+  
       return apiResponse.success(res, { user: userObject }, "Login successful", 200);
     } catch (err) {
-      next(err)
+      next(err);
     }
   },
 
@@ -197,7 +211,7 @@ const authController = {
       const updates = { lastSeenAt: new Date() };
       if (user.status === ACCOUNT_STATUS.PENDING) updates.status = ACCOUNT_STATUS.ACTIVE;
       await User.updateOne({ _id: user._id }, { $set: updates });
-      setAuthCookie(res, user._id);
+      setAuthCookie(res, user._id, user.role);
       const userObject = user.toObject();
       delete userObject.password;
       if (updates.status !== undefined) userObject.status = ACCOUNT_STATUS.ACTIVE;
@@ -211,29 +225,26 @@ const authController = {
   async googleCallback(req, res, next) {
     try {
       if (req.user) {
-        const token = jwt.sign(
-          { userId: req.user._id },
-          process.env.JWT_SECRET,
-          { expiresIn: "1h" },
-        );
-        res.setHeader("Set-Cookie", `token=${token}; HttpOnly; Secure; SameSite=Strict`);
+        // ✅ update lastSeenAt in DB
+        await User.updateOne({ _id: req.user._id }, { $set: { lastSeenAt: new Date() } });
+
+        // ✅ use setAuthCookie instead of manual jwt.sign
+        setAuthCookie(res, req.user._id, req.user.role);
+
         return res.redirect(process.env.FRONTEND_URL);
       }
 
       const { googleId, email } = req.authInfo || {};
       if (!googleId) {
-        return res.redirect(`${process.env.FRONTEND_URL}/login?error=google_auth_failed`);
+        return res.redirect(`${process.env.FRONTEND_URL}/?error=google_auth_failed`);
       }
 
       const tempToken = jwt.sign(
         { googleId, email, isTemp: true },
         process.env.JWT_SECRET,
-        { expiresIn: "10m" },
+        { expiresIn: "10m" }
       );
-
-      return res.redirect(
-        `${process.env.FRONTEND_URL}/onboarding?tempToken=${encodeURIComponent(tempToken)}`,
-      );
+      return res.redirect(`${process.env.FRONTEND_URL}/onboarding?tempToken=${encodeURIComponent(tempToken)}`);
     } catch (err) {
       next(err);
     }
@@ -277,7 +288,7 @@ const authController = {
         role,
         emailVerifiedAt: email ? new Date() : null,
       });
-      setAuthCookie(res, user._id);
+      setAuthCookie(res, user._id, user.role);
       return apiResponse.success(res, { user: user }, "Registration successful", 201);
     } catch (err) {
       next(err);
@@ -291,12 +302,30 @@ const authController = {
       const decoded = verifyToken(token);
       const user = await User.findOne({ _id: decoded.userId, role: { $in: ["artist", "organisation"] } });
       if (!user) return apiResponse.failure(res, "User not found", 404);
-      const artistProfile = user.role === "artist" ? await ArtistProfile.findOne({ user: user._id }) : null;
-      const organisationProfile = user.role === "organisation" ? await OrganisationProfile.findOne({ user: user._id }) : null;
+
       const userObj = user.toObject();
+
+      // ✅ remove sensitive fields
+      delete userObj.googleId;
+      delete userObj.emailVerifiedAt;
+      delete userObj.phoneVerifiedAt;
+      delete userObj.__v;
+
       userObj.isOnline = user.lastSeenAt && (Date.now() - new Date(user.lastSeenAt).getTime() < ONLINE_THRESHOLD_MS);
-      return apiResponse.success(res, { user: userObj, artistProfile, organisationProfile }, "User fetched successfully", 200);
-    } catch (err) { next(err); }
+
+      if (user.role === "artist") {
+        const artistProfile = await ArtistProfile.findOne({ user: user._id });
+        return apiResponse.success(res, { user: userObj, artistProfile }, "User fetched successfully", 200);
+      }
+
+      if (user.role === "organisation") {
+        const organisationProfile = await OrganisationProfile.findOne({ user: user._id });
+        return apiResponse.success(res, { user: userObj, organisationProfile }, "User fetched successfully", 200);
+      }
+
+    } catch (err) {
+      next(err);
+    }
   },
 };
 
